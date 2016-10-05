@@ -1,0 +1,161 @@
+include <fstream>
+#include <iostream>
+#include <string>
+#include <string.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <wait.h>
+#include <vector>
+#include <limits.h>
+#include <stack>
+using namespace std;
+
+int main(){
+   //build path stack                                                           
+    stack<string> pathStack;
+
+    while (true){
+    //get the current directory                                                 
+    char buff[PATH_MAX];
+    char * cwd = getcwd(buff,PATH_MAX);
+    string cwdstr = cwd;
+    //prompt                                                                    
+    string comline;
+    cout<<"myshell:"<<cwd<<" $ ";
+    getline(cin, comline);
+    cout<<"input:"<<comline<<endl;
+    string s;
+    vector<string> wordVect;
+
+    //parse                                                                     
+    for(string::iterator it = comline.begin(); it != comline.end(); ++it){
+      //take the space after '\' into the string                                
+      if(*it =='\\'){
+        s += *(++it);
+        it++;
+      }
+      if(*it != ' '){
+        s += *it;
+      }
+      if(*it == ' '){
+        wordVect.push_back(s);
+        s.clear();
+      }
+    }
+    wordVect.push_back(s);
+    if(wordVect[0] == "exit"){
+      break;
+    }
+    //-----step 3-----//                                                        
+    if( wordVect[0].find("pushd") != string::npos||
+        wordVect[0].find("popd") != string::npos ||
+        wordVect[0].find("dirstack") != string::npos ||
+        wordVect[0].find("cd") != string::npos ){
+      if(wordVect[0] == "cd"){
+
+        if(wordVect[1] == "~"){
+          char * homedir = getenv("HOME");
+          cout<<"HOME DIR"<<homedir<<endl;
+          chdir(homedir);
+          continue;
+        }
+        if(wordVect[1] == ".."){
+          string nwcwd = cwdstr.substr(0, cwdstr.find_last_of("/"));
+          chdir(nwcwd.c_str());
+          continue;
+        }
+        //cd. keep here                                                         
+        if(wordVect[1] == "."){
+          cout<<"stay at the current directory"<<endl;
+          continue;
+        }
+        //cd path to directory :go that directory     
+        else{
+          char actualpath[PATH_MAX];
+          char* ptr = realpath(wordVect[1].c_str(), actualpath);
+          cout<<"the path to the directory is:"<<ptr<<endl;
+          int cdirn  = chdir(ptr);
+          cout<<"check if change directory succeed or not "<<cdirn<<endl;
+          if(cdirn != 0){
+            cout<<"cant's change directory"<<endl;
+          }
+        }
+      }
+      if(wordVect[0] ==  "pushd"){
+        if(wordVect.size() > 1){//there is a new path of directory              
+        //change dir                                                            
+          cout<<"the new path is:"<<wordVect[1].c_str()<<endl;
+          int cdir = chdir(wordVect[1].c_str());
+          cout<<"check if change directory succeed or not "<<cdir<<endl;
+          if(cdir == 0){//succeed                                               
+            //push the old directory onto the stack                             
+
+            cout<<"the old path is "<<cwdstr<<endl;
+            pathStack.push(cwdstr);
+          }
+          else{
+            cout<<"cant's change directory"<<endl;
+          }
+        }
+      }
+ if(wordVect[0] ==  "popd" ){
+        if( !pathStack.empty()){
+          //change the current dir to that one                                  
+          chdir(( pathStack.top() ).c_str());
+          //pop                                                                 
+          pathStack.pop();
+        }
+        else{
+          cout<<"the stack is empty, cannot pop"<<endl;
+        }
+      }
+
+      if(wordVect[0] ==  "dirstack"){
+        stack<string> pathS;
+        while(!pathStack.empty()){
+          pathS.push(pathStack.top());
+          pathStack.pop();
+          continue;
+        }
+        while(!pathS.empty()){
+          cout<<pathS.top()<<endl;
+          pathS.pop();
+        }
+      }
+      continue;
+    }
+pid_t pid = fork();
+    if (pid == -1){
+      cout<<"process could not be created"<<endl;
+      return (EXIT_FAILURE);
+    }
+    else if (pid == 0){
+      char ** arg = new char*[wordVect.size()+1];
+      for(size_t i = 0; i < wordVect.size(); i++){
+      arg[i] = strdup(wordVect[i].c_str());
+      }
+      arg[wordVect.size()] = NULL;
+      execvp(arg[0],arg);
+    }
+    else{
+      pid_t w;
+      int status;
+
+      w = waitpid(pid, &status, WUNTRACED|WCONTINUED);
+      if(w == -1) {
+        perror("waitpid");
+        exit (EXIT_FAILURE);
+      }
+      if (WIFEXITED(status)){
+        printf("ptogram excited with  status %d\n", WEXITSTATUS(status));
+      }
+      else if (WIFSIGNALED(status)){
+        printf("program was killed by signal %d\n", WTERMSIG(status));
+      }
+    }
+  }
+  return(EXIT_SUCCESS);
+}
+
+
