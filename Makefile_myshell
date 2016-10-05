@@ -1,0 +1,3 @@
+myshell:myshell.cpp
+        g++  -o myshell -ggdb3 -Wall -Werror -pedantic -std=gnu++98  myshell5.c\
+pp
